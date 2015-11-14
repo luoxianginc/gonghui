@@ -14,3 +14,14 @@
 Route::get('/', function () {
     return view('welcome');
 });
+
+//api
+Route::group(['domain' => env('APP_API_PREFIX')], function () {
+	Route::group(['prefix' => 'v1.0/users'], function () {
+		Route::post('/', 'Api\UserController@create');
+		Route::get('me/access_token', 'Api\UserController@getAccessToken');
+		Route::get('me', 'Api\UserController@get');
+		Route::post('me', 'Api\UserController@update');
+		Route::get('{userId}', 'Api\UserController@get')->where('userId', '[0-9]{10}');
+	});
+});
