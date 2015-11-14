@@ -115,6 +115,8 @@ class UserController extends Controller
 			$info = array_except($params, ['timestamp', 'nonce']);
 		}
 
+		// return response()->json($sign);
+
 		if ($sign != $signature) {
 			return response()->json(Http::responseFail('非法请求', 405, 'request_error'));
 		}
@@ -193,12 +195,7 @@ class UserController extends Controller
 	 * 获取用户信息 get /users/me /users/{userId}
 	 *
 	 * 参数
-	 *   access_token/mobile
-	 *   name		可选
-	 *   password	可选
-	 *   gender		可选
-	 *   location	可选
-	 *   avatar		可选
+	 *   access_token/userId
 	 *
 	 * 返回值
 	 *   {
@@ -242,7 +239,7 @@ class UserController extends Controller
 	}
 	
 	/*
-	 * 登录 post /users/me/access_token
+	 * 登录 get /users/me/access_token
 	 *
 	 * 参数
 	 *   email/mobile
@@ -273,6 +270,7 @@ class UserController extends Controller
 		}
 
 		$sign = Http::signature('users/me/access_token', compact($type, 'password', 'timestamp', 'nonce'));
+		// return response()->json($sign);
 		if ($sign != $signature) {
 			return response()->json(Http::responseFail('非法请求', 405, 'request_error'));
 		}
