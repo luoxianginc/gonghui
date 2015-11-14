@@ -13,7 +13,7 @@
 
 Route::get('/', function () {
     return view('welcome');
-	// 1
+	// 2
 });
 
 //api
