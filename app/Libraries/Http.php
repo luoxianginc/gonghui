@@ -7,10 +7,11 @@ class Http
 	public static function httpGet($url, $data = null)
 	{
 		if (!is_null($data)) {
-			$url .= '?' . http_build_query($data);
+			$url .= '?' . urldecode(http_build_query($data));
 		}
 
 		$ch = curl_init($url);
+
 		curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
 		curl_setopt($ch, CURLOPT_BINARYTRANSFER, true);
 		curl_setopt($ch, CURLOPT_ENCODING, 'gzip');
@@ -28,15 +29,16 @@ class Http
 		curl_setopt($ch, CURLOPT_TIMEOUT, 30);
 		curl_setopt($ch, CURLOPT_FOLLOWLOCATION, 1);
 
-		$output = curl_exec($ch);
+		$response = curl_exec($ch);
 		curl_close($ch);
 
-		return $output;
+		return $response;
 	}
 
 	public static function httpsPost($url, $data = [], $header = [], $timeout = 30)
 	{
 		$ch = curl_init();
+
 		curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false); // 跳过证书检查
 		curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 2);  // 从证书中检查SSL加密算法是否存在
 		curl_setopt($ch, CURLOPT_URL, $url);
@@ -107,5 +109,20 @@ class Http
 				'error_message'	=> $errorMsg,
 			],
 		];
+	}
+
+	public static function sendMessage($mobile, $content)
+	{
+		$data = [
+			'userName'	=> env('MSG_USERNAME'),
+			'userPwd'	=> env('MSG_PASSWORD'),
+			'content'	=> $content,
+			'phoneNum'	=> $mobile
+		];
+			
+		$response = self::httpGet(env('MSG_HOST'), $data);
+		preg_match('/<string xmlns=\"http:\/\/tempuri.org\/\">(.*)<\/string>/', $response, $str);
+
+		return strlen($str[1]) < 32 ? false : true;
 	}
 }

@@ -11,6 +11,8 @@
 |
 */
 
+Route::get('test', 'TestController@index');
+
 Route::get('/', function () {
     return view('welcome');
 });
@@ -18,10 +20,13 @@ Route::get('/', function () {
 //api
 Route::group(['domain' => env('APP_API_PREFIX')], function () {
 	Route::group(['prefix' => 'v1.0/users'], function () {
-		Route::post('/', 'Api\UserController@create');
-		Route::get('me/access_token', 'Api\UserController@getAccessToken');
-		Route::get('me', 'Api\UserController@get');
-		Route::post('me', 'Api\UserController@update');
-		Route::get('{userId}', 'Api\UserController@get')->where('userId', '[0-9]{10}');
+		//Route::get('me/access_token', 'Api\UserController@getAccessToken');
+		//Route::get('me', 'Api\UserController@get');
+		//Route::post('me', 'Api\UserController@update');
+		//Route::get('{userId}', 'Api\UserController@get')->where('userId', '[0-9]{10}');
+		Route::post('verification', 'Api\UserController@sendVerification');
+		Route::post('access_token', 'Api\UserController@login');
+		Route::post('/', 'Api\UserController@register');
+		Route::post('password', 'Api\UserController@changePassword');
 	});
 });

@@ -15,13 +15,23 @@ class User
      *
      * @param  string  $accessToken
      */
-	public function __construct($accessToken, $byMobile = false)
+	public function __construct($type, $account)
 	{
-		$userId = PRedis::hGet('access_tokens', $accessToken);
+		switch ($type) {
+			case 'access_token':
+				$userId = PRedis::hGet('access_tokens', $account);
+				break;
+			case 'user_id':
+				$userId = $account;
+				break;
+		}
+
 		if (!$userId) return;
 
-		$serverAccessToken = PRedis::hGet("user:{$userId}:info", 'access_token');
-		if ($accessToken != $serverAccessToken) return;
+		if ($type == 'access_token') {
+			$serverAccessToken = PRedis::hGet("user:{$userId}:info", 'access_token');
+			if ($account != $serverAccessToken) return;
+		}
 
 		$this->id = $userId;
 		$this->info = PRedis::hGetAll("user:{$userId}:info");
@@ -84,20 +94,6 @@ class User
 			$info['password'] = String::md5Salt($info['password'], $this->id);
 		}
 
-/*
-		if (array_key_exists('avatar', $info) && !starts_with($info['avatar'], 'http://')) {
-			$avatar = String::randImgName($info['avatar']);
-			
-			while (Storage::disk('oss')->exists("avatar/{$avatar}")) {
-				$avatar = String::randImgName($info['avatar']);
-			}
-
-			Storage::disk('oss')->move("upload/{$this->id}/{$info['avatar']}", "avatar/{$avatar}");
-			array_set($info, 'avatar', Url::img($avatar, 'avatar'));
-		}
-*/
-
-		$info = array_except($info, ['oldPassword']);
 		PRedis::hMSet("user:{$this->id}:info", $info);
 		$this->info = PRedis::hGetAll("user:{$this->id}:info");
 
@@ -128,7 +124,8 @@ class User
 	 *
      * @return bigint
      */
-	 public function getId() {
+	 public function getId()
+	 {
 		return $this->id;
 	 }
 
@@ -137,7 +134,8 @@ class User
 	 *
      * @return boolean
      */
-	 public function isEmpty() {
+	 public function isEmpty()
+	 {
 		return empty($this->id);
 	 }
 
@@ -158,25 +156,36 @@ class User
      * 查找user 
      *
      * @param  bigint  $userId
-     * @return array
+     * @return object  $user
      */
     public static function find($userId)
 	{
 		$accessToken = PRedis::hGet("user:{$userId}:info", 'access_token');
-		return new self($accessToken);
+		return new self('access_token', $accessToken);
 	}
 
 	/**
      * 根据mobile查找user 
      *
      * @param  bigint  $mobile
-     * @return array
+     * @return object  $user
      */
     public static function findByMobile($mobile)
 	{
 		$userId = PRedis::hGet('mobiles', $mobile);
-		$accessToken = PRedis::hGet("user:{$userId}:info", 'access_token');
-		return new self($accessToken, true);
+		return new self('user_id', $userId);
+	}
+
+	/**
+     * 根据username查找user 
+     *
+     * @param  bigint  $username
+     * @return object  $user
+     */
+    public static function findByUsername($username)
+	{
+		$userId = PRedis::hGet('usernames', $username);
+		return new self('user_id', $userId);
 	}
 
 	/**
@@ -223,10 +232,10 @@ class User
      * @param  string  $email/$mobile
      * @param  string  $password
      * @param  string  $created_ip
-     * @return string  $accessToken
-     * @return Response
+     * @return object  $user
      */
-	public static function register($type, $account, $createdIp, $info = []) {
+	public static function register($type, $account, $createdIp, $info = [])
+	{
 		$userId = static::createUserId();
 		$accessToken = static::createAccessToken();
 
@@ -234,7 +243,7 @@ class User
 			'created_time'	=> date('Y-m-d H:i:s'),
 			'created_ip'	=> $createdIp,
 			'access_token'	=> $accessToken,
-			$type			=> $account,
+			$type			=> $account
 		]);
 		
 		if (array_key_exists('password', $info)) {
@@ -246,10 +255,11 @@ class User
 		PRedis::hSet('access_tokens', $accessToken, $userId);
 		PRedis::rPush('users', $userId);
 
-		return $accessToken;
+		return new self('access_token', $accessToken);
 	}
 
-	public static function createUserId() {
+	public static function createUserId() 
+	{
 		$id = mt_rand(1000000000, 9999999999);
 
 		while (PRedis::exists("user:{$id}:info")) {
@@ -259,28 +269,8 @@ class User
 		return $id;
 	}
 
-	public static function createAccessToken() {
+	public static function createAccessToken() 
+	{
 		return md5(time() . '@' . (rand() % 100000));
 	}
-
-/*
-	public static function getAvatarUrl($userId, $width = 100)
-	{
-		$avatar = PRedis::hGet("user:{$userId}:info", 'avatar');
-
-		if (empty($avatar)) {
-			return asset('img/avatar_default.png');
-		}
-
-		if (str_contains($avatar, env('ALIYUN_IMG_REAL_URL'))) {
-			if (str_contains($avatar, '|200w')) {
-				return str_replace('|200w', "|{$width}w", $avatar);
-			} else {
-				return str_replace('@400w', "@{$width}w", $avatar);
-			}
-		} else {
-			return $avatar;
-		}
-	}
-*/
 }

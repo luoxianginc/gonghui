@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
+use Mail;
 use PRedis;
 use Illuminate\Http\Request;
 use App\Libraries\String;
@@ -13,236 +14,130 @@ use App\Http\Controllers\Controller;
 class UserController extends Controller
 {
 	/*
-	 * 注册 post /users
+	 * 登录 post /users/access_token
 	 *
 	 * 参数
-	 *   email/mobile/qq_id/wechat_id/weibo_id
+	 *   mobile
+	 *	 verification
+	 *   timestamp
+	 *   nonce
+	 *   signature
+	 * ---------------
+	 *   username/mobile
 	 *   password
 	 *   timestamp
 	 *   nonce
 	 *   signature
 	 *
 	 * 返回值
-	 *   email/mobile:
 	 *   {
 	 *       "meta": {"code": 200},
-	 *	     "data": {
-	 *		     "id"			: "8190605548",
-	 *		     "access_token"	: "99f3322d8c2c31362529c31436fee1b7",
-	 *		     "name"			: "手机用户15672493" // 针对mobile 
-	 *	     }
-	 *	 }
-	 *
-	 *   第三方:
-	 *
-	 *   {
-	 *		 "meta": {"code": 200},
-	 *		 "data":{
-	 *			 "id"			: "8190605548",
-	 *			 "access_token"	: "99f3322d8c2c31362529c31436fee1b7",
-	 *			 "qq_id"		: "...",
-	 *			 "name"			: "张三",
-	 *			 "avatar"		: "...",
-	 *			 "gender"		: "male",
-	 *			 "location"		: "福建"
-	 *	     }
+	 *	     "data": {"access_token": "99f3322d8c2c31362529c31436fee1b7"}
 	 *	 }
 	 */
-	public function create(Request $request) 
+	public function login(Request $request) 
 	{
-		$email		= strtolower($request->input('email'));
-		$mobile		= $request->input('mobile');
-		$qq_id		= $request->input('qq_id');
-		$wechat_id	= $request->input('wechat_id');
-		$weibo_id	= $request->input('weibo_id');
+		$mobile			= $request->input('mobile');
+		$verification	= $request->input('verification');
+		$username		= $request->input('username');
+		$password		= $request->input('password');
+		$timestamp		= $request->input('timestamp');
+		$nonce			= $request->input('nonce');
+		$signature		= $request->input('signature');
+		$createdIp		= $request->server('REMOTE_ADDR');
 
-		$password	= $request->input('password');
-		$timestamp	= $request->input('timestamp');
-		$nonce		= $request->input('nonce');
-		$signature	= $request->input('signature');
-
-		$type = collect(compact('email', 'mobile', 'qq_id', 'wechat_id', 'weibo_id'))->filter(function($item){
+		$type = collect(compact('mobile', 'username'))->filter(function($item){
 			return !empty($item);
 		})->keys()->first();
 
 		if (!$type || !$timestamp || !$nonce || !$signature) {
 			return response()->json(Http::responseFail());
-		} elseif (
-			($type == 'email' && !String::isEmail($email)) ||
-			($type == 'mobile' && !String::isMobile($mobile))
-		) {
-			return response()->json(Http::responseFail('帐号格式错误'));
-		} elseif (
-			($type == 'email' || $type == 'mobile') &&
-			(!$password || strlen($password) < 6 || strlen($password) > 30)
-		) {
-			return response()->json(Http::responseFail('密码位数须在6~30之间'));
-		} elseif (
-			($type == 'email' && PRedis::hExists('emails', $email)) ||
-			($type == 'mobile' && PRedis::hExists('mobiles', $mobile))
-		) {
-			return response()->json(Http::responseFail('账号已被注册', 412, 'param_error'));
 		}
 
-		if ($type == 'email' || $type == 'mobile') {
-			$sign = Http::signature('users', compact($type, 'password', 'timestamp', 'nonce'));
-			$info = ['name' => '', 'password' => $password];
+		switch ($type) {
+			case 'mobile':
+				$mode = collect(compact('verification', 'password'))->filter(function($item){
+					return !empty($item);
+				})->keys()->first();
 
-			if ($type == 'mobile') {
-				$info['name'] = '手机用户' . rand(10000000, 99999999);
-			}
-		} else {
-			$params = compact('timestamp', 'nonce');
-			$params[$type] = $$type;
+				if (!$mode || !String::isMobile($mobile)) {
+					return response()->json(Http::responseFail());
+				}
+				
+				switch ($mode) {
+					case 'verification':
+						$sign = Http::signature('users/access_token', compact($type, 'verification', 'timestamp', 'nonce'));
+						// return response()->json($sign);
 
-			if ($request->has('name')) {
-				$params['name'] = $request->input('name');
-			}
+						if ($sign != $signature) {
+							return response()->json(Http::responseFail('非法请求', 405, 'request_error'));
+						}
+					
+						if ($verification != PRedis::get("verification:{$mobile}")) {
+							return response()->json(Http::responseFail('验证码错误'));
+						}
 
-			if ($request->has('avatar')) {
-				$params['avatar'] = $request->input('avatar');
-			}
+						$user = User::findByMobile($mobile);
 
-			if ($request->has('gender')) {
-				$params['gender'] = $request->input('gender');
-			}
+						if ($user->isEmpty()) {
+							$info['password'] = rand(100000, 999999);
+							$user = User::register('mobile', $mobile, $createdIp, $info);
+							$content = "您的号码:{$mobile}，初始密码为{$info['password']}。【阿达游戏】";
+							Http::sendMessage($mobile, $content);
+						}
 
-			if ($request->has('location')) {
-				$params['location'] = $request->input('location');
-			}
+						PRedis::delete("verification:{$mobile}");
 
-			$sign = Http::signature('users', $params);
-			$info = array_except($params, ['timestamp', 'nonce']);
+						break;
+
+					case 'password':
+						$sign = Http::signature('users/access_token', compact($type, 'password', 'timestamp', 'nonce'));
+						// return response()->json($sign);
+
+						if ($sign != $signature) {
+							return response()->json(Http::responseFail('非法请求', 405, 'request_error'));
+						}
+
+						$user = User::findByMobile($mobile);
+
+						if ($user->isEmpty() || $user->password != String::md5Salt($password, $user->getId())) {
+							return response()->json(Http::responseFail('帐号或密码错误'));
+						}
+
+						break;
+				}
+
+				break;
+
+			case 'username': 
+				if (!$password) {
+					return response()->json(Http::responseFail('密码为空'));
+				}
+
+				$sign = Http::signature('users/access_token', compact($type, 'password', 'timestamp', 'nonce'));
+				// return response()->json($sign);
+
+				if ($sign != $signature) {
+					return response()->json(Http::responseFail('非法请求', 405, 'request_error'));
+				}
+
+				$user = User::findByUsername($username);
+
+				if ($user->isEmpty() || $user->password != String::md5Salt($password, $user->getId())) {
+					return response()->json(Http::responseFail('帐号或密码错误'));
+				}
+
+				break;
 		}
 
-		// return response()->json($sign);
-
-		if ($sign != $signature) {
-			return response()->json(Http::responseFail('非法请求', 405, 'request_error'));
-		}
-
-		if ($type != 'email' && $type != 'mobile' && PRedis::hExists("{$type}s", $$type)) {
-			$userId = PRedis::hGet("{$type}s", $$type);
-			$data = collect(PRedis::hMGet("user:{$userId}:info", ['name', 'avatar', 'gender', 'location', 'access_token']))->filter(function($item){
-				return !empty($item);
-			})->toArray();
-			$data['id'] = $userId;
-		} else {
-			$createdIp = $request->server('REMOTE_ADDR');
-			$data['access_token'] = User::register($type, $$type, $createdIp, $info);
-			$data['id'] = PRedis::hGet('access_tokens', $data['access_token']);
-
-			if ($type != 'email' && $type != 'mobile') {
-				$data = array_merge($data, $info);
-			} elseif ($type == 'mobile') {
-				$data['name'] = $info['name'];
-			}
-		}
-
-		return response()->json(Http::responseDone($data));
+		return response()->json(Http::responseDone($user->access_token));
 	}
 
 	/*
-	 * 更新用户信息 post /users/me
+	 * 注册 post /users
 	 *
 	 * 参数
-	 *   access_token/mobile
-	 *   name		可选
-	 *   password	可选
-	 *   gender		可选
-	 *   location	可选
-	 *   avatar		可选
-	 *
-	 * 返回值
-	 *   {
-	 *		 "meta": {"code": 200},
-	 *		 "data":{
-	 *			 "id"			: "8190605548",
-	 *			 "access_token"	: "99f3322d8c2c31362529c31436fee1b7",
-	 *			 "email"		: "...",
-	 *			 "name"			: "张三",
-	 *			 "avatar"		: "...",
-	 *			 "gender"		: "male",
-	 *			 "location"		: "福建"
-	 *	     }
-	 *	 }
-	 */
-	public function update(Request $request) 
-	{
-		$accessToken	= $request->input('access_token');
-		$mobile			= $request->input('mobile');
-		$name			= $request->input('name');
-		$password		= $request->input('password');
-		$gender			= $request->input('gender');
-		$location		= $request->input('location');
-		$avatar			= $request->input('avatar');
-		$user			= $accessToken ? new User($accessToken) : User::findByMobile($mobile);
-
-		if ($user->isEmpty()) {
-			return response()->json(Http::responseFail('用户不存在', 412, 'auth_error'));
-		}
-
-		if (($name && (strlen($name) < 3 || strlen($name) > 48)) || ($gender && !in_array($gender, ['male', 'female']))) {
-			return response()->json(Http::responseFail());
-		}
-
-		$info = $user->update(compact('name', 'password', 'gender', 'location', 'avatar'));
-
-		return $info ? response()->json(Http::responseDone($info)) : response()->json(Http::responseFail());
-	}
-	
-	/*
-	 * 获取用户信息 get /users/me /users/{userId}
-	 *
-	 * 参数
-	 *   access_token/userId
-	 *
-	 * 返回值
-	 *   {
-	 *		 "meta": {"code": 200},
-	 *		 "data":{
-	 *			 "id"			: "8190605548",
-	 *			 "access_token"	: "99f3322d8c2c31362529c31436fee1b7", // 针对/users/me
-	 *			 "email"		: "...",
-	 *			 "name"			: "张三",
-	 *			 "avatar"		: "...",
-	 *			 "gender"		: "male",
-	 *			 "location"		: "福建"
-	 *	     }
-	 *	 }
-	 */
-	public function get(Request $request) 
-	{
-		$accessToken	= $request->get('access_token');
-		$userId			= $request->route('userId');
-		$user			= $userId ? User::find($userId) : new User($accessToken);
-
-		if ((!$accessToken && !$userId) || $user->isEmpty()) {
-			return response()->json(Http::responseFail());
-		}
-
-		$data = array_only($user->all(), [
-			'id',
-			'access_token',
-			'email',
-			'name',
-			'gender',
-			'location',
-			'avatar'
-		]);
-
-		if ($userId) {
-			unset($data['access_token']);
-		}
-
-		return response()->json(Http::responseDone($data));
-	}
-	
-	/*
-	 * 登录 get /users/me/access_token
-	 *
-	 * 参数
-	 *   email/mobile
+	 *   username
 	 *   password
 	 *   timestamp
 	 *   nonce
@@ -250,39 +145,118 @@ class UserController extends Controller
 	 *
 	 * 返回值
 	 *   {
-	 *		 "meta": {"code": 200},
-	 *		 "data": "99f3322d8c2c31362529c31436fee1b7"
+	 *       "meta": {"code": 200},
+	 *	     "data": {"access_token": "99f3322d8c2c31362529c31436fee1b7"}
 	 *	 }
 	 */
-	public function getAccessToken(Request $request) 
+	public function register(Request $request) 
 	{
-		$email = $request->get('email');
-		$mobile = $request->get('mobile');
-		$password = $request->get('password');
-		$timestamp = $request->get('timestamp');
-		$nonce = $request->get('nonce');
-		$signature = $request->get('signature');
+		$username	= $request->input('username');
+		$password	= $request->input('password');
+		$timestamp	= $request->input('timestamp');
+		$nonce		= $request->input('nonce');
+		$signature	= $request->input('signature');
+		$createdIp	= $request->server('REMOTE_ADDR');
 
-		$type = $email ? 'email' : ($mobile ? 'mobile' : '');
-
-		if (!$type || !$password || !$timestamp || !$nonce || !$signature) {
+		if (!$username || !$password || !$timestamp || !$nonce || !$signature) {
 			return response()->json(Http::responseFail());
+		} elseif (strpos($username, '@')) {
+			return response()->json(Http::responseFail('帐号包含@符'));
+		} elseif (preg_match('/^[0-9]+$/', $username)) {
+			return response()->json(Http::responseFail('帐号全是数字'));
+		} elseif (PRedis::hExists('usernames', $username)) {
+			return response()->json(Http::responseFail('帐号已被注册', 412, 'param_error'));
+		} elseif (strlen($password) < 6 || strlen($password) > 30) {
+			return response()->json(Http::responseFail('密码位数须在6~30之间'));
 		}
 
-		$sign = Http::signature('users/me/access_token', compact($type, 'password', 'timestamp', 'nonce'));
+		$sign = Http::signature('users', compact('username', 'password', 'timestamp', 'nonce'));
 		// return response()->json($sign);
+
 		if ($sign != $signature) {
 			return response()->json(Http::responseFail('非法请求', 405, 'request_error'));
 		}
 
-		$res = User::login($$type, $password, $type);
-		
-		if (array_get($res, 'meta.code') == 400) {
-			return response()->json($res);
+		$user = User::register('username', $username, $createdIp, ['name' => $username, 'password' => $password]);
+
+		return response()->json(Http::responseDone($user->access_token));
+	}
+
+	/*
+	 * 修改用户密码 post /users/password
+	 *
+	 * 参数
+	 *   account 
+	 *   old_password
+	 *   password
+	 *
+	 * 返回值
+	 *   {"meta": {"code": 200}}
+	 */
+	public function changePassword(Request $request) 
+	{
+		$account		= $request->input('account');
+		$oldPassword	= $request->input('old_password');
+		$password		= $request->input('password');
+		$timestamp		= $request->input('timestamp');
+		$nonce			= $request->input('nonce');
+		$signature		= $request->input('signature');
+
+		if (!$account || !$oldPassword || !$password || !$timestamp || !$nonce || !$signature) {
+			return response()->json(Http::responseFail());
 		}
 
-		$accessToken = array_get($res, 'data.access_token');
+		$sign = Http::signature('users/password', compact('account', 'oldPassword', 'password', 'timestamp', 'nonce'));
+		// return response()->json($sign);
 
-		return response()->json(Http::responseDone($accessToken));
+		if ($sign != $signature) {
+			return response()->json(Http::responseFail('非法请求', 405, 'request_error'));
+		}
+
+		$type = preg_match('/^[0-9]+$/', $account) ? 'mobile' : 'username';
+		$method = "findBy{$type}";
+		$user = User::$method($account);
+
+		if ($user->isEmpty()) {
+			return response()->json(Http::responseFail('用户不存在', 412, 'auth_error'));
+		} elseif ($user->password != String::md5Salt($oldPassword, $user->getId())) {
+			return response()->json(Http::responseFail('旧密码错误'));
+		} elseif (strlen($password) < 6 || strlen($password) > 30) {
+			return response()->json(Http::responseFail('密码位数须在6~30之间'));
+		}
+
+		$info = $user->update(compact('password'));
+
+		return $info ? response()->json(Http::responseDone()) : response()->json(Http::responseFail());
+	}
+	
+	/*
+	 * 发送修改密码邮件或短信 get /users/verification
+	 *
+	 * 参数
+	 *   mobile
+	 *
+	 * 返回值
+	 *   {"meta": {"code": 200}}
+	 */
+	 public function sendVerification(Request $request)
+	 {
+		$mobile	= $request->input('mobile');
+
+		if (!$mobile || !String::isMobile($mobile)) {
+			return response()->json(Http::responseFail('帐号格式错误'));
+		}
+
+		$verification = rand(1000, 9999);
+		$content = "验证码:{$verification}，请在30分钟内输入您的验证码哦，谢谢。【阿达游戏】";
+
+		$flag = Http::sendMessage($mobile, $content);
+
+		if ($flag) {
+			PRedis::setex("verification:{$mobile}", 1800, $verification);
+			return response()->json(Http::responseDone());
+		} else {
+			return response()->json(Http::responseFail('发送失败', 405, 'request_error'));
+		}
 	}
 }
