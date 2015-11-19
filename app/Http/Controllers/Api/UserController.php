@@ -198,19 +198,9 @@ class UserController extends Controller
 		$account		= $request->input('account');
 		$oldPassword	= $request->input('old_password');
 		$password		= $request->input('password');
-		$timestamp		= $request->input('timestamp');
-		$nonce			= $request->input('nonce');
-		$signature		= $request->input('signature');
 
-		if (!$account || !$oldPassword || !$password || !$timestamp || !$nonce || !$signature) {
-			return response()->json(Http::responseFail());
-		}
-
-		$sign = Http::signature('users/password', compact('account', 'oldPassword', 'password', 'timestamp', 'nonce'));
-		// return response()->json($sign);
-
-		if ($sign != $signature) {
-			return response()->json(Http::responseFail('非法请求', 405, 'request_error'));
+		if (!$account || !$oldPassword || !$password) {
+			return response()->json(Http::responseFail())->header('Access-Control-Allow-Origin', '*');
 		}
 
 		$type = preg_match('/^[0-9]+$/', $account) ? 'mobile' : 'username';
@@ -218,16 +208,16 @@ class UserController extends Controller
 		$user = User::$method($account);
 
 		if ($user->isEmpty()) {
-			return response()->json(Http::responseFail('用户不存在', 412, 'auth_error'));
+			return response()->json(Http::responseFail('用户不存在', 412, 'auth_error'))->header('Access-Control-Allow-Origin', '*');
 		} elseif ($user->password != String::md5Salt($oldPassword, $user->getId())) {
-			return response()->json(Http::responseFail('旧密码错误'));
+			return response()->json(Http::responseFail('旧密码错误'))->header('Access-Control-Allow-Origin', '*');
 		} elseif (strlen($password) < 6 || strlen($password) > 30) {
-			return response()->json(Http::responseFail('密码位数须在6~30之间'));
+			return response()->json(Http::responseFail('密码位数须在6~30之间'))->header('Access-Control-Allow-Origin', '*');
 		}
 
 		$info = $user->update(compact('password'));
 
-		return $info ? response()->json(Http::responseDone()) : response()->json(Http::responseFail());
+		return $info ? response()->json(Http::responseDone())->header('Access-Control-Allow-Origin', '*') : response()->json(Http::responseFail())->header('Access-Control-Allow-Origin', '*');
 	}
 	
 	/*

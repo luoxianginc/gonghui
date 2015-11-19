@@ -1,4 +1,5 @@
 var elixir = require('laravel-elixir');
+elixir.config.sourcemaps = false;
 
 /*
  |--------------------------------------------------------------------------
@@ -12,5 +13,9 @@ var elixir = require('laravel-elixir');
  */
 
 elixir(function(mix) {
-    mix.sass('app.scss');
+    mix.sass('change_password.scss', 'resources/css');
+	mix.styles(['animate.min.css', 'change_password.css'], 'public/css/change_password.css', 'resources/css');
+	
+	mix.browserify('change_password.js', 'resources/js');
+	mix.scripts(['common.js', 'change_password.js'], 'public/js/change_password.js', 'resources/js');
 });
