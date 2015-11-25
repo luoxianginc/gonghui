@@ -35,17 +35,14 @@ class Http
 		return $response;
 	}
 
-	public static function httpsPost($url, $data = [], $header = [], $timeout = 30)
+	public static function httpPost($url, $data = [], $timeout = 30)
 	{
 		$ch = curl_init();
 
-		curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false); // 跳过证书检查
-		curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 2);  // 从证书中检查SSL加密算法是否存在
 		curl_setopt($ch, CURLOPT_URL, $url);
-		curl_setopt($ch, CURLOPT_HTTPHEADER, $header);
+		curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
 		curl_setopt($ch, CURLOPT_POST, true);
 		curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query($data));
-		curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
 		curl_setopt($ch, CURLOPT_TIMEOUT, $timeout);
 
 		$response = curl_exec($ch);
@@ -114,15 +111,17 @@ class Http
 	public static function sendMessage($mobile, $content)
 	{
 		$data = [
-			'userName'	=> env('MSG_USERNAME'),
-			'userPwd'	=> env('MSG_PASSWORD'),
+			'userid'	=> env('MSG_USERID'),
+			'password'	=> env('MSG_PASSWORD'),
+			'account'	=> env('MSG_ACCOUNT'),
 			'content'	=> $content,
-			'phoneNum'	=> $mobile
+			'mobile'	=> $mobile,
+			'sendtime'	=> '' 
 		];
-			
-		$response = self::httpGet(env('MSG_HOST'), $data);
-		preg_match('/<string xmlns=\"http:\/\/tempuri.org\/\">(.*)<\/string>/', $response, $str);
 
-		return strlen($str[1]) < 32 ? false : true;
+		$url=env('MSG_HOST');
+		$response = self::httpPost($url, $data);
+
+		return strpos($response, 'Success');
 	}
 }
