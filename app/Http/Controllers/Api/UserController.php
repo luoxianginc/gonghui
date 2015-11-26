@@ -32,7 +32,10 @@ class UserController extends Controller
 	 * 返回值
 	 *   {
 	 *       "meta": {"code": 200},
-	 *	     "data": {"access_token": "99f3322d8c2c31362529c31436fee1b7"}
+	 *	     "data": {
+	 *			"sdk_access_token": "8576b5acba85fa399bd77d37b828ed9f",
+	 *			"access_token": "99f3322d8c2c31362529c31436fee1b7"
+	 *		 }
 	 *	 }
 	 */
 	public function login(Request $request) 
@@ -77,11 +80,11 @@ class UserController extends Controller
 							return response()->json(Http::responseFail('验证码错误'));
 						}
 
-						$user = User::findByMobile($mobile);
+						$user = User::find('mobile', $mobile);
 
-						if ($user->isEmpty()) {
+						if (!$user) {
 							$info['password'] = rand(100000, 999999);
-							$user = User::register('mobile', $mobile, $createdIp, $info);
+							list($user, $tempAccessToken) = User::register('mobile', $mobile, $createdIp, $info);
 							$content = "您的号码:{$mobile}，初始密码为{$info['password']}。【阿达游戏】";
 							Http::sendMessage($mobile, $content);
 						}
@@ -98,10 +101,12 @@ class UserController extends Controller
 							return response()->json(Http::responseFail('非法请求', 405, 'request_error'));
 						}
 
-						$user = User::findByMobile($mobile);
+						$login = User::login('mobile', $mobile, $password);
 
-						if ($user->isEmpty() || $user->password != String::md5Salt($password, $user->getId())) {
+						if (!$login) {
 							return response()->json(Http::responseFail('帐号或密码错误'));
+						} else {
+							list($user, $tempAccessToken) = $login;
 						}
 
 						break;
@@ -121,16 +126,21 @@ class UserController extends Controller
 					return response()->json(Http::responseFail('非法请求', 405, 'request_error'));
 				}
 
-				$user = User::findByUsername($username);
+				$login = User::login('username', $username, $password);
 
-				if ($user->isEmpty() || $user->password != String::md5Salt($password, $user->getId())) {
+				if (!$login) {
 					return response()->json(Http::responseFail('帐号或密码错误'));
+				} else {
+					list($user, $tempAccessToken) = $login;
 				}
 
 				break;
 		}
 
-		return response()->json(Http::responseDone($user->access_token));
+		return response()->json(Http::responseDone([
+			'sdk_access_token'	=> $user->access_token,
+			'access_token'		=> $tempAccessToken
+		]));
 	}
 
 	/*
@@ -146,7 +156,10 @@ class UserController extends Controller
 	 * 返回值
 	 *   {
 	 *       "meta": {"code": 200},
-	 *	     "data": {"access_token": "99f3322d8c2c31362529c31436fee1b7"}
+	 *	     "data": {
+	 *			"sdk_access_token": "8576b5acba85fa399bd77d37b828ed9f",
+	 *			"access_token": "99f3322d8c2c31362529c31436fee1b7"
+	 *		 }
 	 *	 }
 	 */
 	public function register(Request $request) 
@@ -177,9 +190,12 @@ class UserController extends Controller
 			return response()->json(Http::responseFail('非法请求', 405, 'request_error'));
 		}
 
-		$user = User::register('username', $username, $createdIp, ['name' => $username, 'password' => $password]);
+		list($user, $tempAccessToken) = User::register('username', $username, $createdIp, ['name' => $username, 'password' => $password]);
 
-		return response()->json(Http::responseDone($user->access_token));
+		return response()->json(Http::responseDone([
+			'sdk_access_token'	=> $user->access_token,
+			'access_token'		=> $tempAccessToken
+		]));
 	}
 
 	/*
@@ -204,10 +220,9 @@ class UserController extends Controller
 		}
 
 		$type = preg_match('/^[0-9]+$/', $account) ? 'mobile' : 'username';
-		$method = "findBy{$type}";
-		$user = User::$method($account);
+		$user = User::find($type, $account);
 
-		if ($user->isEmpty()) {
+		if (!$user) {
 			return response()->json(Http::responseFail('用户不存在', 412, 'auth_error'))->header('Access-Control-Allow-Origin', '*');
 		} elseif ($user->password != String::md5Salt($oldPassword, $user->getId())) {
 			return response()->json(Http::responseFail('旧密码错误'))->header('Access-Control-Allow-Origin', '*');
@@ -216,8 +231,9 @@ class UserController extends Controller
 		}
 
 		$info = $user->update(compact('password'));
+		$response = $info ? response()->json(Http::responseDone()) : response()->json(Http::responseFail());
 
-		return $info ? response()->json(Http::responseDone())->header('Access-Control-Allow-Origin', '*') : response()->json(Http::responseFail())->header('Access-Control-Allow-Origin', '*');
+		return $response->header('Access-Control-Allow-Origin', '*');
 	}
 	
 	/*

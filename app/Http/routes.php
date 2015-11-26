@@ -23,7 +23,7 @@ Route::get('user/password', 'UserController@changePassword');
 //api
 Route::group(['domain' => env('APP_API_PREFIX')], function () {
 	Route::group(['prefix' => 'v1.0/user'], function () {
-		Route::post('verification', 'Api\UserController@sendVerification');
+		Route::get('verification', 'Api\UserController@sendVerification');
 		Route::post('access_token', 'Api\UserController@login');
 		Route::post('/', 'Api\UserController@register');
 		Route::post('password', ['uses' => 'Api\UserController@changePassword', 'as' => 'password']);

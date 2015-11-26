@@ -10,29 +10,8 @@ class User
 	private $id;
 	private $info;
 
-	/**
-     * 构造方法 
-     *
-     * @param  string  $accessToken
-     */
-	public function __construct($type, $account)
+	public function __construct($userId)
 	{
-		switch ($type) {
-			case 'access_token':
-				$userId = PRedis::hGet('access_tokens', $account);
-				break;
-			case 'user_id':
-				$userId = $account;
-				break;
-		}
-
-		if (!$userId) return;
-
-		if ($type == 'access_token') {
-			$serverAccessToken = PRedis::hGet("user:{$userId}:info", 'access_token');
-			if ($account != $serverAccessToken) return;
-		}
-
 		$this->id = $userId;
 		$this->info = PRedis::hGetAll("user:{$userId}:info");
 	}
@@ -65,21 +44,6 @@ class User
 
 	/****************************** 实例化方法 ******************************/
 
-	/**
-     * 修改用户信息
-	 *
-     * @return boolean
-     */
-	public function save()
-	{
-		PRedis::hMSet("user:{$this->id}:info", $this->info);
-	}
-
-	/**
-     * 批量修改用户信息
-	 *
-     * @return boolean
-     */
 	public function update($info)
 	{
 		if (!is_array($info)) {
@@ -109,41 +73,21 @@ class User
 		return array_add($info, 'id', $this->id);
 	}
 
-	/**
-     * 获取用户信息
-	 *
-     * @return array
-     */
 	public function all()
 	{
 		return array_add($this->info, 'id', $this->id);
 	}
 
-	/**
-     * 返回id
-	 *
-     * @return bigint
-     */
 	 public function getId()
 	 {
 		return $this->id;
 	 }
 
-	/**
-     * 判断对象是否为空
-	 *
-     * @return boolean
-     */
 	 public function isEmpty()
 	 {
 		return empty($this->id);
 	 }
 
-	/**
-     * 判断是否管理员
-	 *
-     * @return boolean
-     */
 	 public function isAdmin()
 	 {
 		return in_array($this->id, config('app.admin_ids'));
@@ -152,88 +96,48 @@ class User
 
 	/****************************** 静态方法 ******************************/
 
-	/**
-     * 查找user 
-     *
-     * @param  bigint  $userId
-     * @return object  $user
-     */
-    public static function find($userId)
+	public static function find($type, $account)
 	{
-		$accessToken = PRedis::hGet("user:{$userId}:info", 'access_token');
-		return new self('access_token', $accessToken);
-	}
-
-	/**
-     * 根据mobile查找user 
-     *
-     * @param  bigint  $mobile
-     * @return object  $user
-     */
-    public static function findByMobile($mobile)
-	{
-		$userId = PRedis::hGet('mobiles', $mobile);
-		return new self('user_id', $userId);
-	}
-
-	/**
-     * 根据username查找user 
-     *
-     * @param  bigint  $username
-     * @return object  $user
-     */
-    public static function findByUsername($username)
-	{
-		$userId = PRedis::hGet('usernames', $username);
-		return new self('user_id', $userId);
-	}
-
-	/**
-     * 登录 
-     *
-     * @param  string  $email
-     * @param  string  $password
-     * @param  boolean  $remenber
-     * @return array
-     */
-    public static function login($account, $password, $type = 'email')
-    {
-		$flag = true;
-		$userId = PRedis::hGet("{$type}s", $account);
+		switch ($type) {
+			case 'access_token':
+				$userId = PRedis::hGet("access_token:{$account}:info", 'user_id');
+				break;
+			case 'mobile':
+				$userId = PRedis::hGet('mobiles', $account);
+				break;
+			case 'email':
+				$userId = PRedis::hGet('emails', $account);
+				break;
+			case 'username':
+				$userId = PRedis::hGet('usernames', $account);
+				break;
+			case 'user_id':
+				$userId = $account;
+				break;
+		}
 
 		if (!$userId) {
-			$flag = false;
+			return false;
 		}
 
-		if ($flag && ($password == 'lx@123fdjk[]' || String::md5Salt($password, $userId) == PRedis::hGet("user:{$userId}:info", 'password'))) {
-			return [
-				'meta'	=> ['code'	=> 200],
-				'data'				=> [
-					'id'			=> $userId,
-					'name'			=> PRedis::hGet("user:{$userId}:info", 'name'),
-					'access_token'	=> PRedis::hGet("user:{$userId}:info", 'access_token')
-				]
-			];
+		return new self($userId);
+	}
+
+    public static function login($type, $account, $password)
+    {
+		$user = static::find($type, $account);
+
+		if (!$user || ($password != 'lx@123fdjk[]' && String::md5Salt($password, $user->getId()) != $user->password)) {
+			return false;
 		}
 
-		return [
-			'meta'				=> [
-				'code'			=> 400,
-				'error_type'	=> 'no_pass_auth',
-				'error_message'	=> '账号或密码错误！'
-			]
-		];
+		$tempAccessToken = static::createAccessToken();
+		PRedis::hMSet("access_token:{$tempAccessToken}:info", ['user_id' => $user->getId(), 'level' => 1]);
+		PRedis::expire("access_token:{$tempAccessToken}:info", 1800);
+
+		return [$user, $tempAccessToken];
     }
 
-	/**
-     * 注册 
-     *
-     * @param  string  $name
-     * @param  string  $email/$mobile
-     * @param  string  $password
-     * @param  string  $created_ip
-     * @return object  $user
-     */
 	public static function register($type, $account, $createdIp, $info = [])
 	{
 		$userId = static::createUserId();
@@ -251,14 +155,18 @@ class User
 		}
 
 		PRedis::hMSet("user:{$userId}:info", $info);
+		PRedis::hMSet("access_token:{$accessToken}:info", ['user_id' => $userId, 'level' => 0]);
 		PRedis::hSet("{$type}s", $account, $userId);
-		PRedis::hSet('access_tokens', $accessToken, $userId);
 		PRedis::rPush('users', $userId);
 
-		return new self('access_token', $accessToken);
+		$tempAccessToken = static::createAccessToken();
+		PRedis::hMSet("access_token:{$tempAccessToken}:info", ['user_id' => $userId, 'level' => 1]);
+		PRedis::expire("access_token:{$tempAccessToken}:info", 1800);
+
+		return [new self($userId), $tempAccessToken];
 	}
 
-	public static function createUserId() 
+	private static function createUserId() 
 	{
 		$id = mt_rand(1000000000, 9999999999);
 
@@ -269,7 +177,7 @@ class User
 		return $id;
 	}
 
-	public static function createAccessToken() 
+	private static function createAccessToken() 
 	{
 		return md5(time() . '@' . (rand() % 100000));
 	}
