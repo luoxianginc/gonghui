@@ -14,7 +14,7 @@ use App\Http\Controllers\Controller;
 class UserController extends Controller
 {
 	/*
-	 * 登录 post /users/access_token
+	 * 登录 post /user/access_token
 	 *
 	 * 参数
 	 *   mobile
@@ -66,7 +66,7 @@ class UserController extends Controller
 				
 				switch ($mode) {
 					case 'verification':
-						$sign = Http::signature('users/access_token', compact($type, 'verification', 'timestamp', 'nonce'));
+						$sign = Http::signature('user/access_token', compact($type, 'verification', 'timestamp', 'nonce'));
 						// return response()->json($sign);
 
 						if ($sign != $signature) {
@@ -91,7 +91,7 @@ class UserController extends Controller
 						break;
 
 					case 'password':
-						$sign = Http::signature('users/access_token', compact($type, 'password', 'timestamp', 'nonce'));
+						$sign = Http::signature('user/access_token', compact($type, 'password', 'timestamp', 'nonce'));
 						// return response()->json($sign);
 
 						if ($sign != $signature) {
@@ -114,7 +114,7 @@ class UserController extends Controller
 					return response()->json(Http::responseFail('密码为空'));
 				}
 
-				$sign = Http::signature('users/access_token', compact($type, 'password', 'timestamp', 'nonce'));
+				$sign = Http::signature('user/access_token', compact($type, 'password', 'timestamp', 'nonce'));
 				// return response()->json($sign);
 
 				if ($sign != $signature) {
@@ -134,7 +134,7 @@ class UserController extends Controller
 	}
 
 	/*
-	 * 注册 post /users
+	 * 注册 post /user
 	 *
 	 * 参数
 	 *   username
@@ -170,7 +170,7 @@ class UserController extends Controller
 			return response()->json(Http::responseFail('密码位数须在6~30之间'));
 		}
 
-		$sign = Http::signature('users', compact('username', 'password', 'timestamp', 'nonce'));
+		$sign = Http::signature('user', compact('username', 'password', 'timestamp', 'nonce'));
 		// return response()->json($sign);
 
 		if ($sign != $signature) {
@@ -183,7 +183,7 @@ class UserController extends Controller
 	}
 
 	/*
-	 * 修改用户密码 post /users/password
+	 * 修改用户密码 post /user/password
 	 *
 	 * 参数
 	 *   account 
@@ -221,7 +221,7 @@ class UserController extends Controller
 	}
 	
 	/*
-	 * 发送修改密码邮件或短信 get /users/verification
+	 * 发送修改密码邮件或短信 get /user/verification
 	 *
 	 * 参数
 	 *   mobile
