@@ -19,6 +19,14 @@
 |nonce|序列码|
 |signature|签名|
 
+|参数|描述|
+|----|----|
+|access_token|认证令牌|
+|password|密码|
+|timestamp|时间戳|
+|nonce|序列码|
+|signature|签名|
+
 ###返回值
 ```
 {
