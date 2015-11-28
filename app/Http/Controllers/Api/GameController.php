@@ -10,6 +10,17 @@ use App\Http\Controllers\Controller;
 
 class GameController extends Controller
 {
+	/*
+	 * 获取游戏信息 get /game/{gameId}
+	 *
+	 * 返回值
+	 *   {
+	 *       "meta": {"code": 200},
+	 *	     "data": {
+	 *			...
+	 *		 }
+	 *	 }
+	 */
 	public function get(Request $request, $gameId)
 	{
 		$game = new Game($gameId);

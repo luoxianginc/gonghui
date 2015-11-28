@@ -28,28 +28,35 @@ class UserController extends Controller
 	 *   timestamp
 	 *   nonce
 	 *   signature
+	 * ---------------
+	 *	 access_token
+	 *   timestamp
+	 *   nonce
+	 *   signature
 	 *
 	 * 返回值
 	 *   {
 	 *       "meta": {"code": 200},
 	 *	     "data": {
 	 *			"sdk_access_token": "8576b5acba85fa399bd77d37b828ed9f",
-	 *			"access_token": "99f3322d8c2c31362529c31436fee1b7"
+	 *			"access_token": "99f3322d8c2c31362529c31436fee1b7",
+	 *			"expires_in": 1800
 	 *		 }
 	 *	 }
 	 */
-	public function login(Request $request) 
+	public function login(Request $request)
 	{
 		$mobile			= $request->input('mobile');
 		$verification	= $request->input('verification');
 		$username		= $request->input('username');
 		$password		= $request->input('password');
+		$accessToken	= $request->input('access_token');
 		$timestamp		= $request->input('timestamp');
 		$nonce			= $request->input('nonce');
 		$signature		= $request->input('signature');
 		$createdIp		= $request->server('REMOTE_ADDR');
 
-		$type = collect(compact('mobile', 'username'))->filter(function($item){
+		$type = collect(compact('mobile', 'username', 'accessToken'))->filter(function($item){
 			return !empty($item);
 		})->keys()->first();
 
@@ -135,11 +142,30 @@ class UserController extends Controller
 				}
 
 				break;
+
+			case 'accessToken':
+				$sign = Http::signature('user/access_token', compact($type, 'password', 'timestamp', 'nonce'));
+				// return response()->json($sign);
+
+				if ($sign != $signature) {
+					return response()->json(Http::responseFail('非法请求', 405, 'request_error'));
+				}
+
+				$user = User::find('access_token', $accessToken);
+
+				if (!$user) {
+					return response()->json(Http::responseFail('帐号或密码错误'));
+				} else {
+					$tempAccessToken = User::createTempAccessToken($user);
+				}
+
+				break;
 		}
 
 		return response()->json(Http::responseDone([
 			'sdk_access_token'	=> $user->access_token,
-			'access_token'		=> $tempAccessToken
+			'access_token'		=> $tempAccessToken,
+			'expires_in'		=> 1800
 		]));
 	}
 
@@ -158,7 +184,8 @@ class UserController extends Controller
 	 *       "meta": {"code": 200},
 	 *	     "data": {
 	 *			"sdk_access_token": "8576b5acba85fa399bd77d37b828ed9f",
-	 *			"access_token": "99f3322d8c2c31362529c31436fee1b7"
+	 *			"access_token": "99f3322d8c2c31362529c31436fee1b7",
+	 *			"expires_in": 1800
 	 *		 }
 	 *	 }
 	 */
@@ -194,7 +221,8 @@ class UserController extends Controller
 
 		return response()->json(Http::responseDone([
 			'sdk_access_token'	=> $user->access_token,
-			'access_token'		=> $tempAccessToken
+			'access_token'		=> $tempAccessToken,
+			'expires_in'		=> 1800
 		]));
 	}
 

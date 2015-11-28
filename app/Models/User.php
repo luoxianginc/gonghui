@@ -78,21 +78,20 @@ class User
 		return array_add($this->info, 'id', $this->id);
 	}
 
-	 public function getId()
-	 {
+	public function getId()
+	{
 		return $this->id;
-	 }
+	}
 
-	 public function isEmpty()
-	 {
+	public function isEmpty()
+	{
 		return empty($this->id);
-	 }
+	}
 
-	 public function isAdmin()
-	 {
+	public function isAdmin()
+	{
 		return in_array($this->id, config('app.admin_ids'));
-	 }
-
+	}
 
 	/****************************** 静态方法 ******************************/
 
@@ -131,9 +130,7 @@ class User
 			return false;
 		}
 
-		$tempAccessToken = static::createAccessToken();
-		PRedis::hMSet("access_token:{$tempAccessToken}:info", ['user_id' => $user->getId(), 'level' => 1]);
-		PRedis::expire("access_token:{$tempAccessToken}:info", 1800);
+		$tempAccessToken = static::createTempAccessToken($user);
 
 		return [$user, $tempAccessToken];
     }
@@ -159,9 +156,7 @@ class User
 		PRedis::hSet("{$type}s", $account, $userId);
 		PRedis::rPush('users', $userId);
 
-		$tempAccessToken = static::createAccessToken();
-		PRedis::hMSet("access_token:{$tempAccessToken}:info", ['user_id' => $userId, 'level' => 1]);
-		PRedis::expire("access_token:{$tempAccessToken}:info", 1800);
+		$tempAccessToken = static::createTempAccessToken($user);
 
 		return [new self($userId), $tempAccessToken];
 	}
@@ -180,5 +175,18 @@ class User
 	private static function createAccessToken() 
 	{
 		return md5(time() . '@' . (rand() % 100000));
+	}
+
+	public static function createTempAccessToken($user)
+	{
+		if ($user->isEmpty()) {
+			return false;
+		}
+
+		$tempAccessToken = static::createAccessToken();
+		PRedis::hMSet("access_token:{$tempAccessToken}:info", ['user_id' => $user->getId(), 'level' => 1]);
+		PRedis::expire("access_token:{$tempAccessToken}:info", 1800);
+
+		return $tempAccessToken;
 	}
 }
