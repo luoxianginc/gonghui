@@ -156,6 +156,7 @@ class User
 		PRedis::hSet("{$type}s", $account, $userId);
 		PRedis::rPush('users', $userId);
 
+		$user = new self($userId);
 		$tempAccessToken = static::createTempAccessToken($user);
 
 		return [new self($userId), $tempAccessToken];
