@@ -113,7 +113,7 @@ class UserController extends Controller
 						$login = User::login('mobile', $mobile, $password);
 
 						if (!$login) {
-							return response()->json(Http::responseFail('帐号或密码错误'));
+							return response()->json(Http::responseFail('帐号或密码错误', 401));
 						} else {
 							list($user, $tempAccessToken) = $login;
 						}
@@ -138,7 +138,7 @@ class UserController extends Controller
 				$login = User::login('username', $username, $password);
 
 				if (!$login) {
-					return response()->json(Http::responseFail('帐号或密码错误'));
+					return response()->json(Http::responseFail('帐号或密码错误', 401));
 				} else {
 					list($user, $tempAccessToken) = $login;
 				}
@@ -156,7 +156,7 @@ class UserController extends Controller
 				$user = User::find('access_token', $accessToken);
 
 				if (!$user) {
-					return response()->json(Http::responseFail('帐号或密码错误'));
+					return response()->json(Http::responseFail('帐号或密码错误', 401));
 				} else {
 					$tempAccessToken = User::createTempAccessToken($user);
 				}
