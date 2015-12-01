@@ -84,7 +84,7 @@ class UserController extends Controller
 						}
 					
 						if ($verification != PRedis::get("verification:{$mobile}")) {
-							return response()->json(Http::responseFail('验证码错误'));
+							return response()->json(Http::responseFail('验证码错误', 402));
 						}
 
 						$user = User::find('mobile', $mobile);
