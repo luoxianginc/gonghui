@@ -79,11 +79,9 @@ class UserController extends Controller
 						$sign = Http::signature('user/access_token', compact($type, 'verification', 'timestamp', 'nonce'));
 						// return response()->json($sign);
 
-						/*
 						if ($sign != $signature) {
 							return response()->json(Http::responseFail('非法请求', 405, 'request_error'));
 						}
-						*/
 					
 						if ($verification != PRedis::get("verification:{$mobile}")) {
 							return response()->json(Http::responseFail('验证码错误'));
@@ -96,6 +94,8 @@ class UserController extends Controller
 							list($user, $tempAccessToken) = User::register('mobile', $mobile, $createdIp, $info);
 							$content = "您的号码:{$mobile}，初始密码为{$info['password']}。【阿达游戏】";
 							Http::sendMessage($mobile, $content);
+						} else {
+							$tempAccessToken = User::createTempAccessToken($user);
 						}
 
 						PRedis::delete("verification:{$mobile}");
