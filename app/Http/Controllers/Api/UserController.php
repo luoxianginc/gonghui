@@ -79,9 +79,11 @@ class UserController extends Controller
 						$sign = Http::signature('user/access_token', compact($type, 'verification', 'timestamp', 'nonce'));
 						// return response()->json($sign);
 
+						/*
 						if ($sign != $signature) {
 							return response()->json(Http::responseFail('非法请求', 405, 'request_error'));
 						}
+						*/
 					
 						if ($verification != PRedis::get("verification:{$mobile}")) {
 							return response()->json(Http::responseFail('验证码错误'));
