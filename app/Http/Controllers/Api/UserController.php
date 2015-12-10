@@ -50,13 +50,13 @@ class UserController extends Controller
 		$verification	= $request->input('verification');
 		$username		= $request->input('username');
 		$password		= $request->input('password');
-		$accessToken	= $request->input('access_token');
+		$access_token	= $request->input('access_token');
 		$timestamp		= $request->input('timestamp');
 		$nonce			= $request->input('nonce');
 		$signature		= $request->input('signature');
 		$createdIp		= $request->server('REMOTE_ADDR');
 
-		$type = collect(compact('mobile', 'username', 'accessToken'))->filter(function($item){
+		$type = collect(compact('mobile', 'username', 'access_token'))->filter(function($item){
 			return !empty($item);
 		})->keys()->first();
 
@@ -145,7 +145,7 @@ class UserController extends Controller
 
 				break;
 
-			case 'accessToken':
+			case 'access_token':
 				$sign = Http::signature('user/access_token', compact($type, 'password', 'timestamp', 'nonce'));
 				// return response()->json($sign);
 
@@ -153,7 +153,7 @@ class UserController extends Controller
 					return response()->json(Http::responseFail('非法请求', 405, 'request_error'));
 				}
 
-				$user = User::find('access_token', $accessToken);
+				$user = User::find('access_token', $access_token);
 
 				if (!$user) {
 					return response()->json(Http::responseFail('帐号或密码错误', 401));
