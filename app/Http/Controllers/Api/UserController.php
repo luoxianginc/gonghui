@@ -146,7 +146,7 @@ class UserController extends Controller
 				break;
 
 			case 'access_token':
-				$sign = Http::signature('user/access_token', compact($type, 'password', 'timestamp', 'nonce'));
+				$sign = Http::signature('user/access_token', compact($type, 'timestamp', 'nonce'));
 				// return response()->json($sign);
 
 				if ($sign != $signature) {
