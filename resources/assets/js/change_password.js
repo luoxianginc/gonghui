@@ -22,7 +22,7 @@ $(document).ready(function() {
 			}
 			*/
 
-			window.GHJSBridge.shareTo(res);
-		}, 'json');
+			window.ChangePasswordResult.showResultToast(res)
+		});
 	});
 });
