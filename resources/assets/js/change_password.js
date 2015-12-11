@@ -14,11 +14,15 @@ $(document).ready(function() {
 		}
 
 		$.post(url, {account: account, old_password: oldPassword, password: password}, function(res) {
+			/*
 			if (res.meta.code == 400) {
 				showAlert({msg: res.meta.error_message});
 			} else if (res.meta.code == 200) {
 				showAlert({msg: '密码修改成功', type: 'success'});
 			}
+			*/
+
+			window.GHJSBridge.shareTo(res);
 		}, 'json');
 	});
 });
